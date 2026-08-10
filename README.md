@@ -15,7 +15,7 @@ Rate limiting is a core building block in backend systems (API throttling, reque
 | Algorithm | Status | Description |
 |---|---|---|
 | Token Bucket | ✅ Implemented | Tokens refill continuously at a fixed rate up to a capacity; each request consumes tokens. Allows bursts up to capacity. |
-| Leaky Bucket | 🚧 Planned | Requests are processed at a fixed output rate, smoothing out bursts. |
+| Leaky Bucket | ✅ Implemented | Requests add to a "water level" that leaks out at a fixed constant rate; overflow is rejected. Smooths output instead of allowing bursts. |
 | Fixed Window Counter | 🚧 Planned | Counts requests in fixed time windows (e.g. per minute), resets each window. |
 | Sliding Window Log | 🚧 Planned | Tracks precise request timestamps within a rolling window. |
 | Sliding Window Counter | 🚧 Planned | Approximates sliding window behavior using weighted counts across two fixed windows. |
@@ -25,6 +25,7 @@ Rate limiting is a core building block in backend systems (API throttling, reque
 ```
 .
 ├── TokenBucket.java     # Token bucket implementation
+├── LeakyBucket.java      # Leaky bucket implementation
 ├── Main.java             # Test/demo harness
 └── README.md
 ```
@@ -57,22 +58,53 @@ if (bucket.tryConsume(3)) {
 }
 ```
 
+## Leaky Bucket — How it works
+
+- A bucket holds a "water level" that starts empty and can rise up to `capacity`.
+- The level leaks (drains) continuously over time at `leakRatePerSecond`.
+- Each call to `tryConsume()` (or `tryConsume(cost)` for weighted costs):
+  - First leaks the bucket based on elapsed time.
+  - Then checks if adding this request's cost would exceed `capacity`:
+    - If no → level increases, request is **allowed**.
+    - If yes → request is **rejected** (overflow).
+- Unlike Token Bucket (which allows bursts up to capacity), Leaky Bucket is about smoothing — the level only ever drains at a fixed rate, so it does not "save up" allowance for future bursts.
+- Same lazy, on-demand time calculation and `ReentrantLock`-based thread safety as Token Bucket.
+
+### Usage
+
+```java
+// capacity = 5, leak rate = 2 per second
+LeakyBucket bucket = new LeakyBucket(5, 2);
+
+if (bucket.tryConsume()) {
+    // allow request
+} else {
+    // reject — bucket would overflow
+}
+
+// weighted cost for a more "expensive" request
+if (bucket.tryConsume(3)) {
+    // allow request
+}
+```
+
 ### Running the demo
 
 ```bash
-javac Main.java TokenBucket.java
+javac TokenBucket.java LeakyBucket.java Main.java
 java Main
 ```
 
-`Main.java` exercises:
-1. Basic consumption up to capacity
-2. Refill behavior over time
-3. Weighted token consumption
+`Main.java` currently exercises the Leaky Bucket implementation:
+1. Fill up to capacity / overflow rejection
+2. Leak behavior over time
+3. Weighted cost consumption
 4. Thread safety under concurrent access
 
 ## Roadmap
 
-- [ ] Implement Leaky Bucket
+- [x] Implement Token Bucket
+- [x] Implement Leaky Bucket
 - [ ] Implement Fixed Window Counter
 - [ ] Implement Sliding Window Log
 - [ ] Implement Sliding Window Counter
@@ -85,4 +117,4 @@ This is primarily a learning/reference repo. Issues and PRs for bug fixes, addit
 
 ## License
 
-MIT# rate_limiting_algo
+MIT
