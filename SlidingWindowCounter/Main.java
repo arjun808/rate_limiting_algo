@@ -1,4 +1,4 @@
-public class Main {
+public class SlidingWindowCounterDemo {
     public static void main(String[] args) throws InterruptedException {
         int limit = 5;
         long windowSizeMs = 2000; // 2 seconds, so test runs fast
